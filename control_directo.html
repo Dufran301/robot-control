@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Robot IA - Control Directo Móvil</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <!-- MediaPipe CDNs oficiales -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --bg-base: #07070a;
+            --bg-card: rgba(18, 18, 26, 0.75);
+            --bg-card-border: rgba(255, 255, 255, 0.05);
+            --color-primary: #00ff88;    /* Verde Neón */
+            --color-secondary: #00d2ff;  /* Azul Ciber */
+            --color-danger: #ff3366;     /* Rojo Failsafe */
+            --color-warning: #ffb700;    /* Ámbar */
+            --text-main: #f0f0f5;
+            --text-muted: #7e7e94;
+            --shadow-glow-green: 0 0 15px rgba(0, 255, 136, 0.45);
+            --shadow-glow-blue: 0 0 15px rgba(0, 210, 255, 0.45);
+            --shadow-glow-red: 0 0 15px rgba(255, 51, 102, 0.45);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: none; /* Bloquea gestos del sistema para evitar zooms y scroll no deseado */
+        }
+
+        body {
+            background-color: var(--bg-base);
+            background-image: 
+                radial-gradient(circle at 50% 15%, rgba(0, 210, 255, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 50% 85%, rgba(0, 255, 136, 0.06) 0%, transparent 50%);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            overflow: hidden; /* Evita cualquier scroll accidental en celulares */
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0 12px 0;
+            border-bottom: 1px solid var(--bg-card-border);
+        }
+
+        .header-title {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 900;
+            font-size: 1.15rem;
+            letter-spacing: 0.5px;
+            background: linear-gradient(90deg, var(--color-secondary), var(--color-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--bg-card-border);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            background-color: var(--text-muted);
+        }
+
+        .status-connected {
+            border-color: rgba(0, 255, 136, 0.3);
+            color: var(--color-primary);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.15);
+        }
+        .status-connected .status-dot {
+            background-color: var(--color-primary);
+            box-shadow: 0 0 8px var(--color-primary);
+        }
+
+        .status-disconnected {
+            border-color: rgba(255, 51, 102, 0.3);
+            color: var(--color-danger);
+        }
+        .status-disconnected .status-dot {
+            background-color: var(--color-danger);
+            box-shadow: 0 0 8px var(--color-danger);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .glass-card {
+            background: var(--bg-card);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 16px;
+            padding: 12px;
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        /* --- MODO TOGGLE --- */
+        .mode-toggle-container {
+            display: flex;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 3px;
+            border: 1px solid var(--bg-card-border);
+        }
+
+        .mode-btn {
+            flex: 1;
+            text-align: center;
+            padding: 8px 0;
+            font-weight: 600;
+            font-size: 0.8rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--text-muted);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(135deg, rgba(0, 210, 255, 0.15) 0%, rgba(0, 255, 136, 0.15) 100%);
+            border: 1px solid rgba(0, 255, 136, 0.35);
+            color: var(--text-main);
+            box-shadow: var(--shadow-glow-green);
+        }
+
+        /* --- CONTENEDOR DE CÁMARA (LADO DEL CELULAR) --- */
+        .video-container {
+            position: relative;
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            aspect-ratio: 4/3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .video-container.active {
+            border-color: rgba(0, 210, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.1);
+        }
+
+        #phone-video {
+            display: none; /* Procesamos en background, pintamos en canvas */
+        }
+
+        #processed-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Efecto espejo */
+        }
+
+        .hud-label {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--color-secondary);
+            pointer-events: none;
+            letter-spacing: 0.5px;
+        }
+
+        .hud-fps {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--color-primary);
+            pointer-events: none;
+        }
+
+        .camera-disabled-msg {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 20px;
+        }
+
+        .camera-disabled-msg svg {
+            width: 40px;
+            height: 40px;
+            stroke: var(--text-muted);
+        }
+
+        /* --- D-PAD TÁCTIL --- */
+        .controls-area {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+            position: relative;
+        }
+
+        .dpad {
+            position: relative;
+            width: 180px;
+            height: 180px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .ctrl-btn {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 14px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: all 0.1s ease;
+        }
+
+        .ctrl-btn svg {
+            width: 28px;
+            height: 28px;
+            fill: none;
+            stroke: var(--text-muted);
+            stroke-width: 2.5;
+            transition: all 0.1s ease;
+        }
+
+        /* Efectos activos (Táctil) */
+        .ctrl-btn:active, .ctrl-btn.active {
+            background: rgba(255, 255, 255, 0.05);
+            transform: scale(0.93);
+        }
+
+        .btn-up { grid-column: 2; grid-row: 1; border-color: rgba(0, 210, 255, 0.2); }
+        .btn-up:active, .btn-up.active { border-color: var(--color-secondary); box-shadow: var(--shadow-glow-blue); }
+        .btn-up:active svg, .btn-up.active svg { stroke: var(--color-secondary); transform: translateY(-2px); }
+
+        .btn-left { grid-column: 1; grid-row: 2; border-color: rgba(0, 210, 255, 0.2); }
+        .btn-left:active, .btn-left.active { border-color: var(--color-secondary); box-shadow: var(--shadow-glow-blue); }
+        .btn-left:active svg, .btn-left.active svg { stroke: var(--color-secondary); transform: translateX(-2px); }
+
+        .btn-stop {
+            grid-column: 2;
+            grid-row: 2;
+            background: rgba(255, 51, 102, 0.08);
+            border-color: rgba(255, 51, 102, 0.25);
+            border-radius: 50%;
+        }
+        .btn-stop svg { stroke: var(--color-danger); stroke-width: 3; }
+        .btn-stop:active, .btn-stop.active {
+            background: rgba(255, 51, 102, 0.18);
+            border-color: var(--color-danger);
+            box-shadow: var(--shadow-glow-red);
+            transform: scale(0.9);
+        }
+
+        .btn-right { grid-column: 3; grid-row: 2; border-color: rgba(0, 210, 255, 0.2); }
+        .btn-right:active, .btn-right.active { border-color: var(--color-secondary); box-shadow: var(--shadow-glow-blue); }
+        .btn-right:active svg, .btn-right.active svg { stroke: var(--color-secondary); transform: translateX(2px); }
+
+        .btn-down { grid-column: 2; grid-row: 3; border-color: rgba(0, 210, 255, 0.2); }
+        .btn-down:active, .btn-down.active { border-color: var(--color-secondary); box-shadow: var(--shadow-glow-blue); }
+        .btn-down:active svg, .btn-down.active svg { stroke: var(--color-secondary); transform: translateY(2px); }
+
+        /* HUD GESTOS COMPLETO */
+        .hud-radar-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 180px;
+            width: 100%;
+            gap: 10px;
+            text-align: center;
+        }
+
+        .radar-disc {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: 2px dashed var(--color-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: spin 15s linear infinite;
+        }
+
+        .radar-center {
+            animation: spin-reverse 15s linear infinite;
+        }
+
+        .radar-center svg {
+            width: 30px;
+            height: 30px;
+            stroke: var(--color-primary);
+            fill: none;
+        }
+
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes spin-reverse { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+
+        .hud-status {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 1.05rem;
+            color: #fff;
+        }
+
+        /* --- TERMINAL DE LOGS --- */
+        .logs-box {
+            display: flex;
+            flex-direction: column;
+            height: 95px;
+        }
+
+        .logs-title-bar {
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .logs-title-bar::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--bg-card-border);
+        }
+
+        .terminal-display {
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            flex: 1;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.7rem;
+            padding: 6px;
+            overflow-y: auto;
+            color: #b8b8c5;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .log-line { line-height: 1.25; }
+        .log-line.cmd-out { color: var(--color-primary); }
+        .log-line.conn { color: var(--color-secondary); }
+        .log-line.err { color: var(--color-danger); }
+
+        /* --- CONFIG ACCORDION --- */
+        .config-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 2px;
+        }
+
+        .config-bar-title {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-main);
+        }
+
+        .config-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .config-body.hidden {
+            display: none;
+        }
+
+        /* Pestañas de conexión (Bluetooth vs WiFi) */
+        .conn-tabs {
+            display: flex;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 3px;
+            border: 1px solid var(--bg-card-border);
+        }
+
+        .conn-tab {
+            flex: 1;
+            text-align: center;
+            font-size: 0.75rem;
+            padding: 6px 0;
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .conn-tab.active {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--color-secondary);
+            border: 1px solid rgba(0, 210, 255, 0.2);
+        }
+
+        .field-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .field-row label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        select, input {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 6px;
+            padding: 6px 8px;
+            color: var(--text-main);
+            font-size: 0.75rem;
+            outline: none;
+            width: 100%;
+        }
+
+        select:focus, input:focus {
+            border-color: var(--color-secondary);
+        }
+
+        .cyber-btn {
+            background: linear-gradient(135deg, var(--color-secondary) 0%, #0081c2 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            padding: 8px;
+            font-weight: 700;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            box-shadow: var(--shadow-glow-blue);
+        }
+
+        .cyber-btn:active {
+            transform: scale(0.98);
+        }
+
+        .cyber-btn.danger-style {
+            background: linear-gradient(135deg, var(--color-danger) 0%, #cc1144 100%);
+            box-shadow: var(--shadow-glow-red);
+        }
+
+        footer {
+            text-align: center;
+            padding-top: 8px;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            font-family: 'Share Tech Mono', monospace;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            ROBOT DIRECTO IA
+        </div>
+        <div id="conn-badge" class="status-badge status-disconnected">
+            <span class="status-dot"></span>
+            <span id="conn-badge-text">Desconectado</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- SELECTOR MODO -->
+        <div class="mode-toggle-container">
+            <div id="m-gestures" class="mode-btn active" onclick="setControlMode('gestures')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+                Gestos Celular
+            </div>
+            <div id="m-manual" class="mode-btn" onclick="setControlMode('manual')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="17" cy="12" r="2"/><path d="M6 12h4M8 10v4"/></svg>
+                Mando Táctil
+            </div>
+        </div>
+
+        <!-- AREA DE CÁMARA (PROCESADA CLIENT-SIDE) -->
+        <div id="cam-card" class="glass-card" style="padding: 6px;">
+            <div class="video-container" id="video-container">
+                <div class="hud-label">CAM FRONT DETECTOR</div>
+                <div class="hud-fps" id="fps-counter">FPS: --</div>
+                
+                <!-- Video oculto para capturar frames, renderizamos en el canvas -->
+                <video id="phone-video" playsinline></video>
+                <canvas id="processed-canvas"></canvas>
+
+                <div id="cam-disabled-overlay" class="camera-disabled-msg" style="display: none;">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <div>
+                        <span style="font-weight:700; color:#fff;">Cámara Apagada</span><br>
+                        <span style="font-size:0.65rem;">Cámara desactivada en modo manual para ahorrar batería.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AREA DE BOTONES DINÁMICOS -->
+        <div class="glass-card">
+            <!-- MANDO MANUAL -->
+            <div id="manual-ui" class="controls-area" style="display: none;">
+                <div class="dpad">
+                    <button class="ctrl-btn btn-up" id="btn-up">
+                        <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                    </button>
+                    <button class="ctrl-btn btn-left" id="btn-left">
+                        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                    <button class="ctrl-btn btn-stop" id="btn-stop">
+                        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect></svg>
+                    </button>
+                    <button class="ctrl-btn btn-right" id="btn-right">
+                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                    <button class="ctrl-btn btn-down" id="btn-down">
+                        <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- HUD GESTOS -->
+            <div id="gestures-ui" class="controls-area">
+                <div class="hud-radar-area">
+                    <div class="radar-disc">
+                        <div class="radar-center">
+                            <svg viewBox="0 0 24 24"><path d="M2 12h20M12 2v20"/><circle cx="12" cy="12" r="10"/></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <div id="gesture-hud-status" class="hud-status">PROCESADOR IA ACTIVO</div>
+                        <div style="font-size:0.65rem; color:var(--text-muted); max-width:260px; margin-top:4px;">
+                            Detección de mano autónoma en el móvil.<br>
+                            0=STOP, 1=ADELANTE, 2=ATRÁS, 3=IZQUIERDA, 4=DERECHA.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TERMINAL DE COMANDOS -->
+        <div class="glass-card logs-box">
+            <div class="logs-title-bar">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                Consola Transmisora Celular-Robot
+            </div>
+            <div id="term-display" class="terminal-display">
+                <div class="log-line">Dispositivo listo. Configura tu conexión...</div>
+            </div>
+        </div>
+
+        <!-- AJUSTES DIRECTOS -->
+        <div class="glass-card">
+            <div class="config-bar" onclick="toggleConfigPanel()">
+                <div class="config-bar-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    Ajustes de Canal Inalámbrico
+                </div>
+                <svg id="cfg-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.25s;"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+
+            <div id="cfg-body" class="config-body">
+                <!-- Pestaña Bluetooth o WiFi -->
+                <div class="conn-tabs">
+                    <div id="tab-ble" class="conn-tab active" onclick="setConnectionType('ble')">Bluetooth BLE</div>
+                    <div id="tab-wifi" class="conn-tab" onclick="setConnectionType('wifi')">WiFi Directo</div>
+                </div>
+
+                <!-- Configuración WiFi -->
+                <div id="panel-wifi" class="field-row" style="display:none;">
+                    <label>Dirección IP de Placa Robot (WiFi)</label>
+                    <input type="text" id="wifi-ip" placeholder="Ej: http://192.168.4.1" value="http://192.168.4.1">
+                </div>
+
+                <!-- Configuración Bluetooth -->
+                <div id="panel-ble" class="field-row">
+                    <label>Configuración Bluetooth BLE (HM-10 / AT-09)</label>
+                    <span style="font-size:0.6rem; color:var(--text-muted);">Emparejamiento serial directo mediante GATT standard.</span>
+                </div>
+
+                <button id="main-conn-btn" class="cyber-btn" onclick="initiateConnection()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+                    Conectar Inalámbrico
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        DEPARTAMENTO DE MECATRÓNICA © 2026
+    </footer>
+
+    <!-- LÓGICA DE PROGRAMACIÓN (JS) -->
+    <script>
+        // --- VARIABLES DE ESTADO ---
+        let controlMode = 'gestures';      // 'gestures' o 'manual'
+        let connectionType = 'ble';       // 'ble' o 'wifi'
+        let isConnected = false;
+        let lastSentCommand = 'S';
+        let lastSendTime = 0;
+        const SEND_THROTTLE_MS = 120;     // Evita saturación física del serial/red
+
+        // IP WiFi guardada
+        let robotWifiIp = "http://192.168.4.1";
+
+        // Elementos multimedia
+        const videoElement = document.getElementById('phone-video');
+        const canvasElement = document.getElementById('processed-canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        let cameraHelper = null;
+        let handsDetector = null;
+        let fpsLastTime = 0;
+        let fpsFrameCount = 0;
+
+        // Variables Web Bluetooth
+        let bleDevice = null;
+        let bleGattServer = null;
+        let bleCharacteristic = null;
+
+        // UUIDs Estándar del módulo serie BLE HM-10/AT-09
+        const BLE_SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
+        const BLE_CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+
+        // --- INICIALIZAR Y CARGAR CONFIGURACIÓN ANTERIOR ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // Cargar datos previos de localStorage
+            const savedType = localStorage.getItem('mec_conn_type');
+            const savedIp = localStorage.getItem('mec_wifi_ip');
+            
+            if (savedType) {
+                setConnectionType(savedType);
+            }
+            if (savedIp) {
+                robotWifiIp = savedIp;
+                document.getElementById('wifi-ip').value = savedIp;
+            }
+            
+            // Iniciar MediaPipe por defecto (Modo gestos activo al iniciar)
+            initMediaPipe();
+        });
+
+        // Haptic feedback
+        function triggerVibe(ms = 20) {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(ms);
+            }
+        }
+
+        // Mostrar u ocultar menú colapsable
+        function toggleConfigPanel() {
+            const body = document.getElementById('cfg-body');
+            const arrow = document.getElementById('cfg-arrow');
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                arrow.style.transform = 'rotate(-90deg)';
+            } else {
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Cambiar entre Pestaña BLE y WiFi
+        function setConnectionType(type) {
+            connectionType = type;
+            localStorage.setItem('mec_conn_type', type);
+
+            document.getElementById('tab-ble').classList.toggle('active', type === 'ble');
+            document.getElementById('tab-wifi').classList.toggle('active', type === 'wifi');
+
+            document.getElementById('panel-ble').style.display = type === 'ble' ? 'flex' : 'none';
+            document.getElementById('panel-wifi').style.display = type === 'wifi' ? 'flex' : 'none';
+
+            logToTerminal(`Canal cambiado a: ${type.toUpperCase()}`);
+            
+            // Reset de conexión visual
+            updateConnectionUI(false);
+        }
+
+        // Registrar en Consola Visual
+        function logToTerminal(msg, type = '') {
+            const term = document.getElementById('term-display');
+            const scrollAtBottom = term.scrollHeight - term.clientHeight <= term.scrollTop + 10;
+            
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            if (type) line.className += ` ${type}`;
+            
+            const time = new Date().toTimeString().split(' ')[0];
+            line.textContent = `[${time}] ${msg}`;
+            
+            term.appendChild(line);
+            
+            if (scrollAtBottom) {
+                term.scrollTop = term.scrollHeight;
+            }
+        }
+
+        // --- CONEXIÓN INALÁMBRICA DIRECTA ---
+        async function initiateConnection() {
+            triggerVibe(40);
+            const btn = document.getElementById('main-conn-btn');
+
+            if (isConnected) {
+                // Desconectar
+                disconnectEverything();
+                return;
+            }
+
+            if (connectionType === 'wifi') {
+                // Conexión WiFi (Simulada por Ping o directa)
+                robotWifiIp = document.getElementById('wifi-ip').value.trim();
+                localStorage.setItem('mec_wifi_ip', robotWifiIp);
+                
+                logToTerminal(`Conectando a Placa WiFi en: ${robotWifiIp}...`, 'conn');
+                
+                // Hacemos una prueba de conexión enviando un comando STOP de seguridad
+                btn.textContent = "Probando Enlace WiFi...";
+                btn.disabled = true;
+                
+                try {
+                    // Usamos no-cors por si la placa no tiene cabeceras CORS
+                    await fetch(`${robotWifiIp}/control?cmd=S`, { mode: 'no-cors', signal: AbortSignal.timeout(3000) });
+                    logToTerminal(`Enlace WiFi establecido con éxito.`, 'conn');
+                    updateConnectionUI(true, "WiFi Conectado");
+                } catch (err) {
+                    logToTerminal(`Error de enlace WiFi (Verifica IP y red del robot): ${err.message}`, 'err');
+                    updateConnectionUI(false);
+                } finally {
+                    btn.disabled = false;
+                }
+            } 
+            else if (connectionType === 'ble') {
+                // Conexión Web Bluetooth BLE
+                logToTerminal("Buscando Dispositivo Bluetooth BLE...", 'conn');
+                btn.textContent = "Buscando BLE...";
+                btn.disabled = true;
+
+                try {
+                    // Escanear por el servicio estándar de puerto serie
+                    bleDevice = await navigator.bluetooth.requestDevice({
+                        filters: [
+                            { services: [BLE_SERVICE_UUID] }
+                        ],
+                        optionalServices: [BLE_SERVICE_UUID]
+                    });
+
+                    logToTerminal(`Dispositivo seleccionado: ${bleDevice.name}. Conectando a GATT...`, 'conn');
+                    
+                    bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+
+                    bleGattServer = await bleDevice.gatt.connect();
+                    logToTerminal("Conectado a GATT. Obteniendo Servicio Serial...", 'conn');
+
+                    const service = await bleGattServer.getPrimaryService(BLE_SERVICE_UUID);
+                    logToTerminal("Servicio obtenido. Obteniendo Característica de Escritura...", 'conn');
+
+                    bleCharacteristic = await service.getCharacteristic(BLE_CHARACTERISTIC_UUID);
+                    logToTerminal("¡Bluetooth Conectado con éxito!", 'conn');
+                    
+                    // Enviar comando inicial de seguridad (Alto)
+                    const encoder = new TextEncoder();
+                    await bleCharacteristic.writeValue(encoder.encode('S'));
+                    
+                    updateConnectionUI(true, bleDevice.name);
+                } 
+                catch (err) {
+                    logToTerminal(`Fallo de conexión BLE: ${err.message}`, 'err');
+                    updateConnectionUI(false);
+                } 
+                finally {
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        function disconnectEverything() {
+            logToTerminal("Cerrando canal de comunicación...", 'err');
+            if (bleDevice && bleDevice.gatt.connected) {
+                bleDevice.gatt.disconnect();
+            }
+            updateConnectionUI(false);
+        }
+
+        function onBleDisconnected() {
+            logToTerminal("Conexión Bluetooth perdida o cerrada.", 'err');
+            updateConnectionUI(false);
+        }
+
+        function updateConnectionUI(connected, displayName = '') {
+            isConnected = connected;
+            const badge = document.getElementById('conn-badge');
+            const badgeText = document.getElementById('conn-badge-text');
+            const btn = document.getElementById('main-conn-btn');
+
+            if (connected) {
+                badge.className = 'status-badge status-connected';
+                badgeText.textContent = displayName || "Conectado";
+                btn.className = 'cyber-btn danger-style';
+                btn.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+                    Cerrar Conexión
+                `;
+            } else {
+                badge.className = 'status-badge status-disconnected';
+                badgeText.textContent = "Desconectado";
+                btn.className = 'cyber-btn';
+                btn.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+                    Conectar Inalámbrico
+                `;
+                bleDevice = null;
+                bleGattServer = null;
+                bleCharacteristic = null;
+            }
+        }
+
+        // --- TRANSMISIÓN DE COMANDOS DIRECTOS ---
+        async function transmitCommand(cmd) {
+            const now = Date.now();
+            // Control anti-saturación de señales
+            if (cmd === lastSentCommand && (now - lastSendTime) < SEND_THROTTLE_MS) {
+                return;
+            }
+
+            lastSentCommand = cmd;
+            lastSendTime = now;
+
+            // Renderizar comando en consola
+            logToTerminal(`Transmitiendo comando: ${cmd}`, 'cmd-out');
+
+            // 1. Envío vía WiFi HTTP
+            if (connectionType === 'wifi' && isConnected) {
+                try {
+                    // Petición no-cors ultrarrápida sin esperar respuesta
+                    fetch(`${robotWifiIp}/control?cmd=${cmd}`, { mode: 'no-cors' });
+                } catch(e) {
+                    console.log("WiFi Write fail: ", e);
+                }
+            }
+            
+            // 2. Envío vía Web Bluetooth BLE
+            if (connectionType === 'ble' && isConnected && bleCharacteristic) {
+                try {
+                    const encoder = new TextEncoder();
+                    await bleCharacteristic.writeValue(encoder.encode(cmd));
+                } catch (err) {
+                    logToTerminal(`Error al escribir BLE: ${err.message}`, 'err');
+                    // auto desconectar si hay un fallo crítico continuo
+                    updateConnectionUI(false);
+                }
+            }
+        }
+
+        // --- CAMBIO DE MODOS (GESTOS VS TÁCTIL) ---
+        function setControlMode(mode) {
+            triggerVibe(40);
+            controlMode = mode;
+
+            document.getElementById('m-gestures').classList.toggle('active', mode === 'gestures');
+            document.getElementById('m-manual').classList.toggle('active', mode === 'manual');
+
+            document.getElementById('gestures-ui').style.display = mode === 'gestures' ? 'flex' : 'none';
+            document.getElementById('manual-ui').style.display = mode === 'manual' ? 'flex' : 'none';
+
+            const canvas = document.getElementById('processed-canvas');
+            const overlay = document.getElementById('cam-disabled-overlay');
+
+            if (mode === 'manual') {
+                // Apagar cámara para ahorrar batería del celular en modo manual
+                stopCamera();
+                canvas.style.display = 'none';
+                overlay.style.display = 'flex';
+                document.getElementById('video-container').classList.remove('active');
+                transmitCommand('S'); // Detener robot
+            } else {
+                // Encender cámara y calibrar MediaPipe en gestos
+                canvas.style.display = 'block';
+                overlay.style.display = 'none';
+                document.getElementById('video-container').classList.add('active');
+                initCamera();
+            }
+        }
+
+        // --- GESTIÓN DE CÁMARA E IA (MEDIAPIPE) ---
+        function initMediaPipe() {
+            logToTerminal("Calibrando procesador MediaPipe Hands...");
+            
+            handsDetector = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            handsDetector.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.65,
+                minTrackingConfidence: 0.65
+            });
+
+            handsDetector.onResults(onHandResults);
+            
+            // Iniciar cámara frontal
+            initCamera();
+        }
+
+        function initCamera() {
+            if (cameraHelper) return; // Ya está activa
+
+            logToTerminal("Iniciando cámara frontal del teléfono...");
+            
+            cameraHelper = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (controlMode === 'gestures') {
+                        await handsDetector.send({ image: videoElement });
+                    }
+                },
+                width: 640,
+                height: 480,
+                facingMode: 'user' // Forzar cámara frontal
+            });
+
+            cameraHelper.start()
+                .then(() => {
+                    logToTerminal("Cámara frontal en línea.");
+                    document.getElementById('video-container').classList.add('active');
+                })
+                .catch(err => {
+                    logToTerminal(`Fallo al abrir cámara: ${err.message}`, 'err');
+                });
+        }
+
+        function stopCamera() {
+            if (cameraHelper) {
+                cameraHelper.stop();
+                cameraHelper = null;
+                logToTerminal("Módulo de cámara en reposo.");
+            }
+        }
+
+        // --- LÓGICA DE PROCESAMIENTO E IA (DIBUJO NEÓN) ---
+        function onHandResults(results) {
+            // Calcular FPS
+            const now = Date.now();
+            fpsFrameCount++;
+            if (now - fpsLastTime >= 1000) {
+                document.getElementById('fps-counter').textContent = `FPS: ${fpsFrameCount}`;
+                fpsFrameCount = 0;
+                fpsLastTime = now;
+            }
+
+            // Adaptar tamaño de canvas al video
+            if (canvasElement.width !== results.image.width) {
+                canvasElement.width = results.image.width;
+                canvasElement.height = results.image.height;
+            }
+
+            // Dibujar fondo de video en canvas
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            let detectedGesture = 'S';
+            let fingersUp = 0;
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // CONTAR DEDOS (ESPEJADOS)
+                const tips = [4, 8, 12, 16, 20];
+                
+                // Pulgar: Compara posición X con nudillo vecino (espejado)
+                if (landmarks[tips[0]].x > landmarks[tips[0] - 1].x) {
+                    fingersUp++;
+                }
+                
+                // Los otros 4 dedos
+                for (let i = 1; i < 5; i++) {
+                    if (landmarks[tips[i]].y < landmarks[tips[i] - 2].y) {
+                        fingersUp++;
+                    }
+                }
+
+                // Dibujar esqueleto de mano estilo NEÓN CIBERPUNK
+                drawCyberHand(landmarks);
+
+                // Mapear dedos a comandos
+                if (fingersUp === 0) detectedGesture = 'S';
+                else if (fingersUp === 1) detectedGesture = 'F';
+                else if (fingersUp === 2) detectedGesture = 'B';
+                else if (fingersUp === 3) detectedGesture = 'L';
+                else if (fingersUp === 4) detectedGesture = 'R';
+                else detectedGesture = 'S';
+
+                // Mostrar en pantalla del HUD
+                const hudLabel = document.getElementById('gesture-hud-status');
+                const commandMap = { 'S': 'ALTO ⏹️', 'F': 'ADELANTE 🔼', 'B': 'ATRÁS 🔽', 'L': 'IZQUIERDA ◀️', 'R': 'DERECHA ▶️' };
+                hudLabel.textContent = `IA: ${commandMap[detectedGesture]} (${fingersUp} Dedos)`;
+                hudLabel.style.color = detectedGesture === 'S' ? 'var(--color-danger)' : 'var(--color-primary)';
+            } 
+            else {
+                // Si no se detectan manos en Modo Gestos, enviar Alto (Safety Failsafe)
+                detectedGesture = 'S';
+                document.getElementById('gesture-hud-status').textContent = "BUSCANDO MANO...";
+                document.getElementById('gesture-hud-status').style.color = 'var(--text-muted)';
+            }
+
+            canvasCtx.restore();
+
+            // Transmitir comando determinado por gestos
+            if (controlMode === 'gestures') {
+                transmitCommand(detectedGesture);
+            }
+        }
+
+        // Función personalizada para dibujar mano con glow de neón ciberpunk
+        function drawCyberHand(landmarks) {
+            const connections = [
+                [0, 1], [1, 2], [2, 3], [3, 4],       // Pulgar
+                [0, 5], [5, 6], [6, 7], [7, 8],       // Índice
+                [9, 10], [10, 11], [11, 12],          // Medio
+                [13, 14], [14, 15], [15, 16],         // Anular
+                [0, 17], [17, 18], [18, 19], [19, 20], // Meñique
+                [5, 9], [9, 13], [13, 17]             // Palma
+            ];
+
+            const w = canvasElement.width;
+            const h = canvasElement.height;
+
+            // Dibujar Conexiones
+            canvasCtx.lineWidth = 4;
+            canvasCtx.strokeStyle = 'rgba(0, 210, 255, 0.8)';
+            canvasCtx.shadowBlur = 10;
+            canvasCtx.shadowColor = 'var(--color-secondary)';
+
+            connections.forEach(([p1, p2]) => {
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(landmarks[p1].x * w, landmarks[p1].y * h);
+                canvasCtx.lineTo(landmarks[p2].x * w, landmarks[p2].y * h);
+                canvasCtx.stroke();
+            });
+
+            // Dibujar Articulaciones
+            canvasCtx.shadowBlur = 15;
+            canvasCtx.shadowColor = 'var(--color-primary)';
+            canvasCtx.fillStyle = 'var(--color-primary)';
+
+            for (let i = 0; i < 21; i++) {
+                canvasCtx.beginPath();
+                canvasCtx.arc(landmarks[i].x * w, landmarks[i].y * h, 6, 0, 2 * Math.PI);
+                canvasCtx.fill();
+            }
+
+            // Resetear efectos de sombra
+            canvasCtx.shadowBlur = 0;
+        }
+
+        // --- SISTEMA FAILSAFE DE MANDO MANUAL (DEAD-MAN SWITCH) ---
+        function bindManualTouchButton(btnId, commandChar) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+
+            const onStart = (e) => {
+                e.preventDefault();
+                triggerVibe(20);
+                
+                // Apagar estados visuales previos
+                document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                transmitCommand(commandChar);
+            };
+
+            const onEnd = (e) => {
+                e.preventDefault();
+                btn.classList.remove('active');
+                transmitCommand('S'); // Failsafe: parada instantánea al soltar
+            };
+
+            // Eventos Táctiles Móviles
+            btn.addEventListener('touchstart', onStart, { passive: false });
+            btn.addEventListener('touchend', onEnd, { passive: false });
+            btn.addEventListener('touchcancel', onEnd, { passive: false });
+
+            // Soporte de escritorio (Respaldo)
+            btn.addEventListener('mousedown', onStart);
+            btn.addEventListener('mouseup', onEnd);
+            btn.addEventListener('mouseleave', onEnd);
+        }
+
+        // Vincular los eventos de los botones manuales
+        bindManualTouchButton('btn-up', 'F');
+        bindManualTouchButton('btn-down', 'B');
+        bindManualTouchButton('btn-left', 'L');
+        bindManualTouchButton('btn-right', 'R');
+        bindManualTouchButton('btn-stop', 'S');
+
+        // Previene gestos del sistema del móvil al deslizar por el D-pad
+        document.getElementById('manual-ui').addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>
